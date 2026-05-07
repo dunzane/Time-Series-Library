@@ -51,29 +51,15 @@ class Dataset_ETT_hour(Dataset):
     def __read_data__(self):
         self.scaler = StandardScaler()
 
-        file_path = os.path.join(self.root_path, self.data_path)
-        if os.path.exists(file_path):
-            df_raw = pd.read_csv(file_path)
+        local_fp = os.path.join(self.root_path, self.data_path)
+        cfg_name = os.path.splitext(os.path.basename(self.data_path))[0]
+
+        if os.path.exists(local_fp):
+            df_raw = pd.read_csv(local_fp)
         else:
             cache_dir = os.path.expanduser("~/data/hf_cache")
-            os.makedirs(cache_dir, exist_ok=True)
-            hf_config_name = self.data_path.split('.')[0]
-            try:
-                ds = load_dataset(
-                    "dunzane/time-series-dataset",
-                    hf_config_name,
-                    cache_dir=cache_dir
-                )
-                if 'train' in ds and 'validation' in ds and 'test' in ds:
-                    df_train = ds['train'].to_pandas()
-                    df_val = ds['validation'].to_pandas()
-                    df_test = ds['test'].to_pandas()
-                    df_raw = pd.concat([df_train, df_val, df_test], ignore_index=True)
-                else:
-                    split_name = list(ds.keys())[0]
-                    df_raw = ds[split_name].to_pandas()
-            except Exception as e:
-                raise FileNotFoundError(f"❌ Failed to load dataset locally or from Hugging Face. Error: {e}")
+            ds = load_dataset(HUGGINGFACE_REPO, name=cfg_name, cache_dir=cache_dir)
+            df_raw = ds["train"].to_pandas()
 
         border1s = [0, 12 * 30 * 24 - self.seq_len, 12 * 30 * 24 + 4 * 30 * 24 - self.seq_len]
         border2s = [12 * 30 * 24, 12 * 30 * 24 + 4 * 30 * 24, 12 * 30 * 24 + 8 * 30 * 24]
@@ -166,29 +152,15 @@ class Dataset_ETT_minute(Dataset):
     def __read_data__(self):
         self.scaler = StandardScaler()
 
-        file_path = os.path.join(self.root_path, self.data_path)
-        if os.path.exists(file_path):
-            df_raw = pd.read_csv(file_path)
+        local_fp = os.path.join(self.root_path, self.data_path)
+        cfg_name = os.path.splitext(os.path.basename(self.data_path))[0]
+
+        if os.path.exists(local_fp):
+            df_raw = pd.read_csv(local_fp)
         else:
             cache_dir = os.path.expanduser("~/data/hf_cache")
-            os.makedirs(cache_dir, exist_ok=True)
-            hf_config_name = self.data_path.split('.')[0]
-            try:
-                ds = load_dataset(
-                    "dunzane/time-series-dataset",
-                    hf_config_name,
-                    cache_dir=cache_dir
-                )
-                if 'train' in ds and 'validation' in ds and 'test' in ds:
-                    df_train = ds['train'].to_pandas()
-                    df_val = ds['validation'].to_pandas()
-                    df_test = ds['test'].to_pandas()
-                    df_raw = pd.concat([df_train, df_val, df_test], ignore_index=True)
-                else:
-                    split_name = list(ds.keys())[0]
-                    df_raw = ds[split_name].to_pandas()
-            except Exception as e:
-                raise FileNotFoundError(f"❌ Failed to load dataset locally or from Hugging Face. Error: {e}")
+            ds = load_dataset(HUGGINGFACE_REPO, name=cfg_name, cache_dir=cache_dir)
+            df_raw = ds["train"].to_pandas()
 
         border1s = [0, 12 * 30 * 24 * 4 - self.seq_len, 12 * 30 * 24 * 4 + 4 * 30 * 24 * 4 - self.seq_len]
         border2s = [12 * 30 * 24 * 4, 12 * 30 * 24 * 4 + 4 * 30 * 24 * 4, 12 * 30 * 24 * 4 + 8 * 30 * 24 * 4]
@@ -282,30 +254,16 @@ class Dataset_Custom(Dataset):
 
     def __read_data__(self):
         self.scaler = StandardScaler()
+        local_fp = os.path.join(self.root_path, self.data_path)
+        cfg_name = os.path.splitext(os.path.basename(self.data_path))[0]
 
-        file_path = os.path.join(self.root_path, self.data_path)
-        if os.path.exists(file_path):
-            df_raw = pd.read_csv(file_path)
+        if os.path.exists(local_fp):
+            df_raw = pd.read_csv(local_fp)
         else:
             cache_dir = os.path.expanduser("~/data/hf_cache")
-            os.makedirs(cache_dir, exist_ok=True)
-            hf_config_name = self.data_path.split('.')[0]
-            try:
-                ds = load_dataset(
-                    "dunzane/time-series-dataset",
-                    hf_config_name,
-                    cache_dir=cache_dir
-                )
-                if 'train' in ds and 'validation' in ds and 'test' in ds:
-                    df_train = ds['train'].to_pandas()
-                    df_val = ds['validation'].to_pandas()
-                    df_test = ds['test'].to_pandas()
-                    df_raw = pd.concat([df_train, df_val, df_test], ignore_index=True)
-                else:
-                    split_name = list(ds.keys())[0]
-                    df_raw = ds[split_name].to_pandas()
-            except Exception as e:
-                raise FileNotFoundError(f"❌ Failed to load dataset locally or from Hugging Face. Error: {e}")
+            ds = load_dataset(HUGGINGFACE_REPO, name=cfg_name, cache_dir=cache_dir)
+            split_name = "train" if "train" in ds else list(ds.keys())[0]
+            df_raw = ds[split_name].to_pandas()
 
         '''
         df_raw.columns: ['date', ...(other features), target feature]
