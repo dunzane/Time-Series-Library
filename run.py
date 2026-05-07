@@ -156,6 +156,15 @@ if __name__ == '__main__':
     parser.add_argument('--top_p', type=float, default=0.5, help='Dynamic Routing in MoE')
     parser.add_argument('--pos', type=int, choices=[0, 1], default=1, help='Positional Embedding. Set pos to 0 or 1')
 
+    parser.add_argument('--normalizer', type=str, default='softmax',
+                    choices=['softmax', 'diffmax'],
+                    help='attention normalizer')
+    parser.add_argument('--diffmax_alpha', type=float, default=0.85,
+                        help='alpha for diffmax (0 < alpha < 1)')
+    parser.add_argument('--monitor_every', type=int, default=0,
+                    help='Run diffmax_bisect_monitored every N forwards (0=disabled). '
+                         'Slows training ~10x at monitored steps.')
+
     args = parser.parse_args()
     if torch.cuda.is_available() and args.use_gpu:
         args.device = torch.device('cuda:{}'.format(args.gpu))
@@ -223,7 +232,7 @@ if __name__ == '__main__':
                 args.embed,
                 args.distil,
                 args.des, ii)
-            
+
             # Override setting for specific model to ensure proper checkpoint naming and logging
             if args.model == 'MambaSingleLayer' and args.task_name == 'classification':
                 setting = f'{args.task_name}_CLS_{args.model_id}_{args.model}_{args.data}_ft{args.features}' \
@@ -264,7 +273,7 @@ if __name__ == '__main__':
             args.embed,
             args.distil,
             args.des, ii)
-        
+
         # Override setting for specific model to ensure proper checkpoint naming and logging
         if args.model == 'MambaSingleLayer' and args.task_name == 'classification':
             setting = f'{args.task_name}_CLS_{args.model_id}_{args.model}_{args.data}_ft{args.features}' \

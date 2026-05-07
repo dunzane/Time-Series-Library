@@ -1,4 +1,4 @@
-export CUDA_VISIBLE_DEVICES=6
+export CUDA_VISIBLE_DEVICES=3
 
 model_name=PatchTST
 
@@ -22,6 +22,9 @@ python -u run.py \
   --c_out 321 \
   --des 'Exp' \
   --batch_size 16 \
+  --normalizer diffmax \
+  --diffmax_alpha 0.5 \
+  --monitor_every 200 \
   --itr 1
 
 python -u run.py \
@@ -44,6 +47,9 @@ python -u run.py \
   --c_out 321 \
   --des 'Exp' \
   --batch_size 16 \
+  --normalizer diffmax \
+  --diffmax_alpha 0.5 \
+  --monitor_every 200 \
   --itr 1
 
 python -u run.py \
@@ -66,6 +72,9 @@ python -u run.py \
   --c_out 321 \
   --des 'Exp' \
   --batch_size 16 \
+  --normalizer diffmax \
+  --diffmax_alpha 0.5 \
+  --monitor_every 200 \
   --itr 1
 
 python -u run.py \
@@ -88,4 +97,7 @@ python -u run.py \
   --c_out 321 \
   --des 'Exp' \
   --batch_size 16 \
+  --normalizer diffmax \
+  --diffmax_alpha 0.5 \
+  --monitor_every 200 \
   --itr 1

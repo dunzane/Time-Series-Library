@@ -37,7 +37,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
     def _select_criterion(self):
         criterion = nn.MSELoss()
         return criterion
- 
+
 
     def vali(self, vali_data, vali_loader, criterion):
         total_loss = []
@@ -74,6 +74,13 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         return total_loss
 
     def train(self, setting):
+        if self.args.monitor_every > 0:
+            import swanlab
+            swanlab.init(
+                project="diffmax-tslib",
+                name=f"{self.args.model}_{self.args.data}_{self.args.normalizer}_a{self.args.diffmax_alpha}_sl{self.args.seq_len}_pl{self.args.pred_len}",
+                config=vars(self.args), # type: ignore
+            )
         train_data, train_loader = self._get_data(flag='train')
         vali_data, vali_loader = self._get_data(flag='val')
         test_data, test_loader = self._get_data(flag='test')
@@ -159,6 +166,9 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 break
 
             adjust_learning_rate(model_optim, epoch + 1, self.args)
+
+        if self.args.monitor_every > 0:
+            swanlab.finish()
 
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))

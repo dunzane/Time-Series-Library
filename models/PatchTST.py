@@ -5,7 +5,7 @@ from layers.SelfAttention_Family import FullAttention, AttentionLayer
 from layers.Embed import PatchEmbedding
 
 class Transpose(nn.Module):
-    def __init__(self, *dims, contiguous=False): 
+    def __init__(self, *dims, contiguous=False):
         super().__init__()
         self.dims, self.contiguous = dims, contiguous
     def forward(self, x):
@@ -53,15 +53,25 @@ class Model(nn.Module):
             [
                 EncoderLayer(
                     AttentionLayer(
-                        FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                      output_attention=False), configs.d_model, configs.n_heads),
+                        FullAttention(
+                            False, configs.factor,
+                            attention_dropout=configs.dropout,
+                            output_attention=False,
+                            normalizer=getattr(
+                                configs, "normalizer", "softmax"),
+                            diffmax_alpha=getattr(
+                                configs, "diffmax_alpha", 0.85),
+                            monitor_every=getattr(configs, "monitor_every", 0),
+                            layer_id=f"encoder_{l}",
+                        ), configs.d_model, configs.n_heads,),
                     configs.d_model,
                     configs.d_ff,
                     dropout=configs.dropout,
                     activation=configs.activation
                 ) for l in range(configs.e_layers)
             ],
-            norm_layer=nn.Sequential(Transpose(1,2), nn.BatchNorm1d(configs.d_model), Transpose(1,2))
+            norm_layer=nn.Sequential(Transpose(1, 2), nn.BatchNorm1d(
+                configs.d_model), Transpose(1, 2))
         )
 
         # Prediction Head
