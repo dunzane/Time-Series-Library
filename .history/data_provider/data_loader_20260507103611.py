@@ -282,7 +282,6 @@ class Dataset_Custom(Dataset):
 
     def __read_data__(self):
         self.scaler = StandardScaler()
-
         file_path = os.path.join(self.root_path, self.data_path)
         if os.path.exists(file_path):
             df_raw = pd.read_csv(file_path)
