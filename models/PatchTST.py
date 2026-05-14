@@ -5,7 +5,7 @@ from layers.SelfAttention_Family import FullAttention, AttentionLayer
 from layers.Embed import PatchEmbedding
 
 class Transpose(nn.Module):
-    def __init__(self, *dims, contiguous=False): 
+    def __init__(self, *dims, contiguous=False):
         super().__init__()
         self.dims, self.contiguous = dims, contiguous
     def forward(self, x):
@@ -33,7 +33,7 @@ class Model(nn.Module):
     Paper link: https://arxiv.org/pdf/2211.14730.pdf
     """
 
-    def __init__(self, configs, patch_len=16, stride=8):
+    def __init__(self, configs, patch_len=6, stride=4):
         """
         patch_len: int, patch len for patch_embedding
         stride: int, stride for patch_embedding
@@ -54,7 +54,9 @@ class Model(nn.Module):
                 EncoderLayer(
                     AttentionLayer(
                         FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                      output_attention=False), configs.d_model, configs.n_heads),
+                                      output_attention=False,normalizer=configs.normalizer,
+                                      diffmax_alpha=configs.diffmax_alpha),
+                                      configs.d_model, configs.n_heads),
                     configs.d_model,
                     configs.d_ff,
                     dropout=configs.dropout,
@@ -81,11 +83,11 @@ class Model(nn.Module):
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         # Normalization from Non-stationary Transformer
-        means = x_enc.mean(1, keepdim=True).detach()
-        x_enc = x_enc - means
-        stdev = torch.sqrt(
-            torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5)
-        x_enc /= stdev
+        # means = x_enc.mean(1, keepdim=True).detach()
+        # x_enc = x_enc - means
+        # stdev = torch.sqrt(
+        #     torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5)
+        # x_enc /= stdev
 
         # do patching and embedding
         x_enc = x_enc.permute(0, 2, 1)
@@ -106,10 +108,10 @@ class Model(nn.Module):
         dec_out = dec_out.permute(0, 2, 1)
 
         # De-Normalization from Non-stationary Transformer
-        dec_out = dec_out * \
-                  (stdev[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
-        dec_out = dec_out + \
-                  (means[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
+        # dec_out = dec_out * \
+        #           (stdev[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
+        # dec_out = dec_out + \
+        #           (means[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
         return dec_out
 
     def imputation(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask):

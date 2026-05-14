@@ -7,11 +7,6 @@ import random
 import numpy as np
 
 if __name__ == '__main__':
-    fix_seed = 2021
-    random.seed(fix_seed)
-    torch.manual_seed(fix_seed)
-    np.random.seed(fix_seed)
-
     parser = argparse.ArgumentParser(description='TimesNet')
 
     # basic config
@@ -85,15 +80,15 @@ if __name__ == '__main__':
                         help='the length of segmen-wise iteration of SegRNN')
 
     # optimization
-    parser.add_argument('--num_workers', type=int, default=10, help='data loader num workers')
+    parser.add_argument('--num_workers', type=int, default=4, help='data loader num workers')
     parser.add_argument('--itr', type=int, default=1, help='experiments times')
-    parser.add_argument('--train_epochs', type=int, default=10, help='train epochs')
+    parser.add_argument('--train_epochs', type=int, default=100, help='train epochs')
     parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
-    parser.add_argument('--patience', type=int, default=3, help='early stopping patience')
+    parser.add_argument('--patience', type=int, default=10, help='early stopping patience')
     parser.add_argument('--learning_rate', type=float, default=0.0001, help='optimizer learning rate')
     parser.add_argument('--des', type=str, default='test', help='exp description')
-    parser.add_argument('--loss', type=str, default='MSE', help='loss function')
-    parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate')
+    parser.add_argument('--loss', type=str, default='MAE', help='loss function')
+    parser.add_argument('--lradj', type=str, default='type3', help='adjust learning rate')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
 
     # GPU
@@ -115,7 +110,7 @@ if __name__ == '__main__':
 
     # Augmentation
     parser.add_argument('--augmentation_ratio', type=int, default=0, help="How many times to augment")
-    parser.add_argument('--seed', type=int, default=2, help="Randomization seed")
+    parser.add_argument('--seed', type=int, default=2021, help="Randomization seed")
     parser.add_argument('--jitter', default=False, action="store_true", help="Jitter preset augmentation")
     parser.add_argument('--scaling', default=False, action="store_true", help="Scaling preset augmentation")
     parser.add_argument('--permutation', default=False, action="store_true",
@@ -156,7 +151,16 @@ if __name__ == '__main__':
     parser.add_argument('--top_p', type=float, default=0.5, help='Dynamic Routing in MoE')
     parser.add_argument('--pos', type=int, choices=[0, 1], default=1, help='Positional Embedding. Set pos to 0 or 1')
 
+    parser.add_argument('--normalizer', type=str, default='softmax', choices=['softmax', 'diffmax'], help='attention normalizer')
+    parser.add_argument('--diffmax_alpha', type=float, default=0.5, help='alpha for diffmax (0 < alpha < 1)')
+
     args = parser.parse_args()
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    torch.use_deterministic_algorithms(True, warn_only=True)
+
     if torch.cuda.is_available() and args.use_gpu:
         args.device = torch.device('cuda:{}'.format(args.gpu))
         print('Using GPU')
@@ -166,6 +170,9 @@ if __name__ == '__main__':
         else:
             args.device = torch.device("cpu")
         print('Using cpu or mps')
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     if args.use_gpu and args.use_multi_gpu:
         args.devices = args.devices.replace(' ', '')
@@ -199,6 +206,11 @@ if __name__ == '__main__':
         from exp.exp_long_term_forecasting import Exp_Long_Term_Forecast
         Exp = Exp_Long_Term_Forecast
 
+    if args.normalizer == "diffmax":
+        norm_tag = f"{args.normalizer}_a{args.diffmax_alpha}"
+    else:
+        norm_tag = "softmax"
+
     if args.is_training:
         for ii in range(args.itr):
             # setting record of experiments
@@ -222,8 +234,8 @@ if __name__ == '__main__':
                 args.factor,
                 args.embed,
                 args.distil,
-                args.des, ii)
-            
+                norm_tag, args.des,ii)
+
             # Override setting for specific model to ensure proper checkpoint naming and logging
             if args.model == 'MambaSingleLayer' and args.task_name == 'classification':
                 setting = f'{args.task_name}_CLS_{args.model_id}_{args.model}_{args.data}_ft{args.features}' \
@@ -263,8 +275,8 @@ if __name__ == '__main__':
             args.factor,
             args.embed,
             args.distil,
-            args.des, ii)
-        
+            norm_tag,args.des,ii)
+
         # Override setting for specific model to ensure proper checkpoint naming and logging
         if args.model == 'MambaSingleLayer' and args.task_name == 'classification':
             setting = f'{args.task_name}_CLS_{args.model_id}_{args.model}_{args.data}_ft{args.features}' \

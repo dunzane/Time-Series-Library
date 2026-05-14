@@ -6,6 +6,11 @@ from utils.masking import TriangularCausalMask, ProbMask
 from reformer_pytorch import LSHSelfAttention
 from einops import rearrange, repeat
 
+try:
+    from diffmax import diffmax_bisect
+    DIFFMAX_AVAILABLE = True
+except ImportError:
+    DIFFMAX_AVAILABLE = False
 
 class DSAttention(nn.Module):
     '''De-stationary Attention'''
@@ -45,13 +50,79 @@ class DSAttention(nn.Module):
             return V.contiguous(), None
 
 
+# class FullAttention(nn.Module):
+#     def __init__(self, mask_flag=True, factor=5, scale=None, attention_dropout=0.1, output_attention=False):
+#         super(FullAttention, self).__init__()
+#         self.scale = scale
+#         self.mask_flag = mask_flag
+#         self.output_attention = output_attention
+#         self.dropout = nn.Dropout(attention_dropout)
+
+#     def forward(self, queries, keys, values, attn_mask, tau=None, delta=None):
+#         B, L, H, E = queries.shape
+#         _, S, _, D = values.shape
+#         scale = self.scale or 1. / sqrt(E)
+
+#         scores = torch.einsum("blhe,bshe->bhls", queries, keys)
+
+#         if self.mask_flag:
+#             if attn_mask is None:
+#                 attn_mask = TriangularCausalMask(B, L, device=queries.device)
+
+#             scores.masked_fill_(attn_mask.mask, -np.inf)
+
+#         A = self.dropout(torch.softmax(scale * scores, dim=-1))
+#         V = torch.einsum("bhls,bshd->blhd", A, values)
+
+#         if self.output_attention:
+#             return V.contiguous(), A
+#         else:
+#             return V.contiguous(), None
+
 class FullAttention(nn.Module):
-    def __init__(self, mask_flag=True, factor=5, scale=None, attention_dropout=0.1, output_attention=False):
+    def __init__(
+        self,
+        mask_flag=True,
+        factor=5,
+        scale=None,
+        attention_dropout=0.1,
+        output_attention=False,
+        normalizer="softmax",
+        diffmax_alpha=0.85,
+        diffmax_n_iter=50,
+    ):
         super(FullAttention, self).__init__()
         self.scale = scale
         self.mask_flag = mask_flag
         self.output_attention = output_attention
         self.dropout = nn.Dropout(attention_dropout)
+
+        self.normalizer = normalizer
+        self.diffmax_alpha = diffmax_alpha
+        self.diffmax_n_iter = diffmax_n_iter
+
+        if normalizer == "diffmax" and not DIFFMAX_AVAILABLE:
+            raise ImportError(
+                "diffmax not installed; install with: pip install -e <path-to-diffmax>"
+            )
+
+    def _get_alpha(self, scores):
+        return self.diffmax_alpha
+
+    def _normalize(self, scores):
+        if self.normalizer == "softmax":
+            return torch.softmax(scores, dim=-1)
+
+        if self.normalizer == "diffmax":
+            alpha = self._get_alpha(scores)
+            return diffmax_bisect(
+                scores,
+                alpha=alpha,
+                dim=-1,
+                n_iter=self.diffmax_n_iter,
+            )
+
+        raise ValueError(f"unknown normalizer: {self.normalizer}")
 
     def forward(self, queries, keys, values, attn_mask, tau=None, delta=None):
         B, L, H, E = queries.shape
@@ -66,7 +137,9 @@ class FullAttention(nn.Module):
 
             scores.masked_fill_(attn_mask.mask, -np.inf)
 
-        A = self.dropout(torch.softmax(scale * scores, dim=-1))
+        scores = scale * scores
+
+        A = self.dropout(self._normalize(scores))
         V = torch.einsum("bhls,bshd->blhd", A, values)
 
         if self.output_attention:
