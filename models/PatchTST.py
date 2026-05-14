@@ -54,8 +54,13 @@ class Model(nn.Module):
                 EncoderLayer(
                     AttentionLayer(
                         FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                      output_attention=False,normalizer=configs.normalizer,
-                                      diffmax_alpha=configs.diffmax_alpha),
+                                      output_attention=False,
+                                      normalizer=getattr(configs, "normalizer", "softmax"),
+                                      diffmax_alpha=getattr(configs, "diffmax_alpha", 0.85),
+                                      diffmax_n_iter=getattr(configs, "diffmax_n_iter", 50),
+                                      attn_noise_scale=getattr(configs, "attn_noise_scale", 0.0),
+                                      attn_attenuation=getattr(configs, "attn_attenuation", 0.0),
+                                      perturb_eval_only=getattr(configs, "perturb_eval_only", True)),
                                       configs.d_model, configs.n_heads),
                     configs.d_model,
                     configs.d_ff,

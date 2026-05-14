@@ -1,5 +1,6 @@
 import argparse
 import os
+import shutil
 import torch
 import torch.backends
 from utils.print_args import print_args
@@ -153,8 +154,25 @@ if __name__ == '__main__':
 
     parser.add_argument('--normalizer', type=str, default='softmax', choices=['softmax', 'diffmax'], help='attention normalizer')
     parser.add_argument('--diffmax_alpha', type=float, default=0.5, help='alpha for diffmax (0 < alpha < 1)')
+    parser.add_argument('--attn_noise_scale', type=float, default=0.0,
+                        help='deterministic relative multiplicative perturbation scale on attention probabilities')
+    parser.add_argument('--attn_attenuation', type=float, default=0.0,
+                        help='mix attention probabilities with valid-position uniform distribution')
+    parser.add_argument('--perturb_eval_only', type=int, default=1,
+                        help='apply attention perturbation only during eval/test')
+    parser.add_argument('--perturb_save_dir', type=str, default='./perturb_results',
+                        help='directory to save perturbation result npy files')
+    parser.add_argument('--perturb_tag', type=str, default='default',
+                        help='tag for perturbation experiment group')
+    parser.add_argument('--save_full_results', type=int, default=1,
+                        help='save standard TSL result artifacts under results/ and test_results/')
+    parser.add_argument('--keep_checkpoints', type=int, default=1,
+                        help='keep checkpoint directory after training/testing')
 
     args = parser.parse_args()
+    args.perturb_eval_only = bool(args.perturb_eval_only)
+    args.save_full_results = bool(args.save_full_results)
+    args.keep_checkpoints = bool(args.keep_checkpoints)
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -210,6 +228,7 @@ if __name__ == '__main__':
         norm_tag = f"{args.normalizer}_a{args.diffmax_alpha}"
     else:
         norm_tag = "softmax"
+    perturb_tag = f"{norm_tag}_noise{args.attn_noise_scale}_atten{args.attn_attenuation}_{args.perturb_tag}"
 
     if args.is_training:
         for ii in range(args.itr):
@@ -234,20 +253,22 @@ if __name__ == '__main__':
                 args.factor,
                 args.embed,
                 args.distil,
-                norm_tag, args.des,ii)
+                perturb_tag, args.des,ii)
 
             # Override setting for specific model to ensure proper checkpoint naming and logging
             if args.model == 'MambaSingleLayer' and args.task_name == 'classification':
                 setting = f'{args.task_name}_CLS_{args.model_id}_{args.model}_{args.data}_ft{args.features}' \
                         + f'_sl{args.seq_len}_ll{args.label_len}_pl{args.pred_len}_dm{args.d_model}_ds{args.d_ff}' \
                         + f'_expand{args.expand}_dc{args.d_conv}_nk{args.num_kernels}' \
-                        + f'_tvdt{int(args.tv_dt)}_tvB{int(args.tv_B)}_tvC{int(args.tv_C)}_useD{int(args.use_D)}_{args.des}_{ii}'
+                        + f'_tvdt{int(args.tv_dt)}_tvB{int(args.tv_B)}_tvC{int(args.tv_C)}_useD{int(args.use_D)}_{perturb_tag}_{args.des}_{ii}'
 
             print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
             exp.train(setting)
 
             print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
             exp.test(setting)
+            if not args.keep_checkpoints:
+                shutil.rmtree(os.path.join(args.checkpoints, setting), ignore_errors=True)
             if args.use_gpu:
                 if args.gpu_type == 'mps':
                     torch.backends.mps.empty_cache()
@@ -275,14 +296,14 @@ if __name__ == '__main__':
             args.factor,
             args.embed,
             args.distil,
-            norm_tag,args.des,ii)
+            perturb_tag,args.des,ii)
 
         # Override setting for specific model to ensure proper checkpoint naming and logging
         if args.model == 'MambaSingleLayer' and args.task_name == 'classification':
             setting = f'{args.task_name}_CLS_{args.model_id}_{args.model}_{args.data}_ft{args.features}' \
                     + f'_sl{args.seq_len}_ll{args.label_len}_pl{args.pred_len}_dm{args.d_model}_ds{args.d_ff}' \
                     + f'_expand{args.expand}_dc{args.d_conv}_nk{args.num_kernels}' \
-                    + f'_tvdt{args.tv_dt}_tvB{args.tv_B}_tvC{args.tv_C}_useD{int(args.use_D)}_{args.des}_{ii}'
+                    + f'_tvdt{args.tv_dt}_tvB{args.tv_B}_tvC{args.tv_C}_useD{int(args.use_D)}_{perturb_tag}_{args.des}_{ii}'
 
         print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
         exp.test(setting, test=1)

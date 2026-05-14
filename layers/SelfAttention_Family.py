@@ -90,6 +90,9 @@ class FullAttention(nn.Module):
         normalizer="softmax",
         diffmax_alpha=0.85,
         diffmax_n_iter=50,
+        attn_noise_scale=0.0,
+        attn_attenuation=0.0,
+        perturb_eval_only=True,
     ):
         super(FullAttention, self).__init__()
         self.scale = scale
@@ -100,6 +103,9 @@ class FullAttention(nn.Module):
         self.normalizer = normalizer
         self.diffmax_alpha = diffmax_alpha
         self.diffmax_n_iter = diffmax_n_iter
+        self.attn_noise_scale = attn_noise_scale
+        self.attn_attenuation = attn_attenuation
+        self.perturb_eval_only = perturb_eval_only
 
         if normalizer == "diffmax" and not DIFFMAX_AVAILABLE:
             raise ImportError(
@@ -124,12 +130,51 @@ class FullAttention(nn.Module):
 
         raise ValueError(f"unknown normalizer: {self.normalizer}")
 
+    def _deterministic_noise(self, A):
+        """
+        Generate deterministic zero-mean perturbation field with shape [B, H, L, S].
+        This ensures the same perturbation pattern is used across Softmax and Diffmax.
+        """
+        B, H, L, S = A.shape
+        device = A.device
+        dtype = A.dtype
+
+        i = torch.arange(L, device=device, dtype=dtype).view(1, 1, L, 1)
+        j = torch.arange(S, device=device, dtype=dtype).view(1, 1, 1, S)
+        h = torch.arange(H, device=device, dtype=dtype).view(1, H, 1, 1)
+
+        noise = torch.sin(0.37 * i + 0.73 * j + 1.17 * h)
+        noise = noise - noise.mean(dim=-1, keepdim=True)
+        noise = noise / noise.std(dim=-1, keepdim=True).clamp_min(1e-6)
+        return noise.expand(B, H, L, S)
+
+    def _perturb_attention(self, A, valid_mask):
+        if self.attn_noise_scale == 0.0 and self.attn_attenuation == 0.0:
+            return A
+
+        if self.perturb_eval_only and self.training:
+            return A
+
+        valid_mask = valid_mask.to(dtype=A.dtype)
+        noise = self._deterministic_noise(A)
+
+        A_pert = A * (1.0 + self.attn_noise_scale * noise)
+        A_pert = A_pert.clamp_min(0.0)
+        A_pert = A_pert * valid_mask
+
+        valid_count = valid_mask.sum(dim=-1, keepdim=True).clamp_min(1.0)
+        uniform = valid_mask / valid_count
+        A_pert = (1.0 - self.attn_attenuation) * A_pert + self.attn_attenuation * uniform
+        A_pert = A_pert * valid_mask
+
+        return A_pert / A_pert.sum(dim=-1, keepdim=True).clamp_min(1e-12)
+
     def forward(self, queries, keys, values, attn_mask, tau=None, delta=None):
         B, L, H, E = queries.shape
         _, S, _, D = values.shape
         scale = self.scale or 1. / sqrt(E)
 
-        scores = torch.einsum("blhe,bshe->bhls", queries, keys)
+        scores = scale * torch.einsum("blhe,bshe->bhls", queries, keys)
 
         if self.mask_flag:
             if attn_mask is None:
@@ -137,13 +182,15 @@ class FullAttention(nn.Module):
 
             scores.masked_fill_(attn_mask.mask, -np.inf)
 
-        scores = scale * scores
+        valid_mask = torch.isfinite(scores)
 
-        A = self.dropout(self._normalize(scores))
+        A_raw = self._normalize(scores)
+        A = self._perturb_attention(A_raw, valid_mask)
+        A = self.dropout(A)
         V = torch.einsum("bhls,bshd->blhd", A, values)
 
         if self.output_attention:
-            return V.contiguous(), A
+            return V.contiguous(), A_raw
         else:
             return V.contiguous(), None
 

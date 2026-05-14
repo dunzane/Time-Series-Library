@@ -173,8 +173,9 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         preds = []
         trues = []
+        save_full_results = getattr(self.args, "save_full_results", True)
         folder_path = './test_results/' + setting + '/'
-        if not os.path.exists(folder_path):
+        if save_full_results and not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
         self.model.eval()
@@ -216,7 +217,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
                 preds.append(pred)
                 trues.append(true)
-                if i % 20 == 0:
+                if save_full_results and i % 20 == 0:
                     input = batch_x.detach().cpu().numpy()
                     if test_data.scale and self.args.inverse:
                         shape = input.shape
@@ -234,7 +235,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         # result save
         folder_path = './results/' + setting + '/'
-        if not os.path.exists(folder_path):
+        if save_full_results and not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
         # dtw calculation
@@ -254,15 +255,50 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         mae, mse, rmse, mape, mspe = metric(preds, trues)
         print('mse:{}, mae:{}, dtw:{}'.format(mse, mae, dtw))
-        f = open("result_long_term_forecast.txt", 'a')
-        f.write(setting + "  \n")
-        f.write('mse:{}, mae:{}, dtw:{}'.format(mse, mae, dtw))
-        f.write('\n')
-        f.write('\n')
-        f.close()
+        record = {
+            "setting": setting,
+            "task_name": self.args.task_name,
+            "model": self.args.model,
+            "data": self.args.data,
+            "features": self.args.features,
+            "seq_len": self.args.seq_len,
+            "label_len": self.args.label_len,
+            "pred_len": self.args.pred_len,
+            "d_model": self.args.d_model,
+            "n_heads": self.args.n_heads,
+            "e_layers": self.args.e_layers,
+            "d_layers": self.args.d_layers,
+            "d_ff": self.args.d_ff,
+            "normalizer": getattr(self.args, "normalizer", "softmax"),
+            "diffmax_alpha": getattr(self.args, "diffmax_alpha", None),
+            "attn_noise_scale": getattr(self.args, "attn_noise_scale", 0.0),
+            "attn_attenuation": getattr(self.args, "attn_attenuation", 0.0),
+            "perturb_eval_only": getattr(self.args, "perturb_eval_only", True),
+            "perturb_tag": getattr(self.args, "perturb_tag", "default"),
+            "learning_rate": getattr(self.args, "learning_rate", None),
+            "seed": getattr(self.args, "seed", None),
+            "mse": float(mse),
+            "mae": float(mae),
+            "dtw": dtw if isinstance(dtw, str) else float(dtw),
+        }
+        save_dir = getattr(self.args, "perturb_save_dir", "./perturb_results")
+        os.makedirs(save_dir, exist_ok=True)
 
-        np.save(folder_path + 'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
-        np.save(folder_path + 'pred.npy', preds)
-        np.save(folder_path + 'true.npy', trues)
+        safe_name = setting.replace("/", "_").replace(" ", "_")
+        save_path = os.path.join(save_dir, safe_name + ".npy")
+        np.save(save_path, record, allow_pickle=True)
+        print(f"[perturb-save] saved to {save_path}")
+
+        if save_full_results:
+            f = open("result_long_term_forecast.txt", 'a')
+            f.write(setting + "  \n")
+            f.write('mse:{}, mae:{}, dtw:{}'.format(mse, mae, dtw))
+            f.write('\n')
+            f.write('\n')
+            f.close()
+
+            np.save(folder_path + 'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
+            np.save(folder_path + 'pred.npy', preds)
+            np.save(folder_path + 'true.npy', trues)
 
         return

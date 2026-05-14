@@ -1,0 +1,55 @@
+#!/bin/bash
+set -u
+
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+MODEL_NAME=PatchTST
+PYTHON_BIN=${PYTHON_BIN:-python}
+GPU=${CUDA_VISIBLE_DEVICES:-0}
+SAVE_DIR=./perturb_results/norm_softmax
+SEED=2021
+LR=0.0001
+TRAIN_EPOCHS=${TRAIN_EPOCHS:-100}
+
+NOISES=(0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0)
+ATTENS=(0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0)
+
+mkdir -p "${SAVE_DIR}"
+
+for noise in "${NOISES[@]}"; do
+  for atten in "${ATTENS[@]}"; do
+    CUDA_VISIBLE_DEVICES=${GPU} ${PYTHON_BIN} -u run.py \
+      --task_name long_term_forecast \
+      --is_training 1 \
+      --root_path ./dataset/ETT-small/ \
+      --data_path ETTh1.csv \
+      --model_id ETTh1_336_96_norm_softmax_noise${noise}_atten${atten}_seed${SEED} \
+      --model ${MODEL_NAME} \
+      --data ETTh1 \
+      --features M \
+      --seq_len 336 \
+      --label_len 48 \
+      --pred_len 96 \
+      --e_layers 1 \
+      --d_layers 1 \
+      --factor 3 \
+      --enc_in 7 \
+      --dec_in 7 \
+      --c_out 7 \
+      --des norm_softmax_perturb \
+      --n_heads 2 \
+      --train_epochs ${TRAIN_EPOCHS} \
+      --learning_rate ${LR} \
+      --seed ${SEED} \
+      --use_norm 1 \
+      --normalizer softmax \
+      --attn_noise_scale ${noise} \
+      --attn_attenuation ${atten} \
+      --perturb_save_dir ${SAVE_DIR} \
+      --perturb_tag norm_softmax \
+      --save_full_results 0 \
+      --keep_checkpoints 0 \
+      --itr 1
+  done
+done
