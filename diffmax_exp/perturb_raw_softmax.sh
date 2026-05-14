@@ -48,8 +48,6 @@ for noise in "${NOISES[@]}"; do
       --attn_attenuation ${atten} \
       --perturb_save_dir ${SAVE_DIR} \
       --perturb_tag raw_softmax \
-      --save_full_results 0 \
-      --keep_checkpoints 0 \
       --itr 1
   done
 done

@@ -1,6 +1,5 @@
 import argparse
 import os
-import shutil
 import torch
 import torch.backends
 from utils.print_args import print_args
@@ -161,18 +160,12 @@ if __name__ == '__main__':
     parser.add_argument('--perturb_eval_only', type=int, default=1,
                         help='apply attention perturbation only during eval/test')
     parser.add_argument('--perturb_save_dir', type=str, default='./perturb_results',
-                        help='directory to save perturbation result npy files')
+                        help='directory to save perturbation scalar metric records')
     parser.add_argument('--perturb_tag', type=str, default='default',
                         help='tag for perturbation experiment group')
-    parser.add_argument('--save_full_results', type=int, default=1,
-                        help='save standard TSL result artifacts under results/ and test_results/')
-    parser.add_argument('--keep_checkpoints', type=int, default=1,
-                        help='keep checkpoint directory after training/testing')
 
     args = parser.parse_args()
     args.perturb_eval_only = bool(args.perturb_eval_only)
-    args.save_full_results = bool(args.save_full_results)
-    args.keep_checkpoints = bool(args.keep_checkpoints)
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -267,8 +260,6 @@ if __name__ == '__main__':
 
             print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
             exp.test(setting)
-            if not args.keep_checkpoints:
-                shutil.rmtree(os.path.join(args.checkpoints, setting), ignore_errors=True)
             if args.use_gpu:
                 if args.gpu_type == 'mps':
                     torch.backends.mps.empty_cache()
