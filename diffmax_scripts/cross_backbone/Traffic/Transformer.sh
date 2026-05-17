@@ -83,7 +83,7 @@ run_one() {
     --dec_in 862 \
     --c_out 862 \
     --des "${des}" \
-    --train_epochs 3 \
+    --train_epochs 10 \
     --learning_rate ${lr} \
     --seed ${seed} \
     --num_workers 0 \

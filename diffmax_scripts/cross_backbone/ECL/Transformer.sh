@@ -72,16 +72,16 @@ run_one() {
     --model_id "${model_id}" \
     --model "${BACKBONE}" \
     --data custom \
-    --features S \
+    --features M \
     --seq_len ${SEQ_LEN} \
     --label_len ${LABEL_LEN} \
     --pred_len ${pred_len} \
     --e_layers 2 \
     --d_layers 1 \
     --factor 3 \
-    --enc_in 1 \
-    --dec_in 1 \
-    --c_out 1 \
+    --enc_in 321 \
+    --dec_in 321 \
+    --c_out 321 \
     --des "${des}" \
     --learning_rate ${lr} \
     --seed ${seed} \

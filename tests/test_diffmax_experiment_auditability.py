@@ -121,6 +121,34 @@ def test_experiment_scripts_do_not_default_to_one_epoch_smoke_runs():
     assert not violations, "\n".join(violations)
 
 
+def test_cross_backbone_ecl_scripts_use_multivariate_forecasting():
+    scripts = sorted(Path("diffmax_scripts/cross_backbone/ECL").glob("*.sh"))
+    assert scripts
+
+    violations = []
+    for script in scripts:
+        text = script.read_text()
+        if "--features M" not in text:
+            violations.append(f"{script}: ECL script should use --features M")
+        for argument in ("enc_in", "dec_in", "c_out"):
+            if f"--{argument} 321" not in text:
+                violations.append(f"{script}: ECL script should use --{argument} 321")
+
+    assert not violations, "\n".join(violations)
+
+
+def test_traffic_transformer_is_not_undertrained():
+    text = Path("diffmax_scripts/cross_backbone/Traffic/Transformer.sh").read_text()
+
+    assert "--train_epochs 10" in text
+
+
+def test_traffic_crossformer_uses_standard_label_len():
+    text = Path("diffmax_scripts/cross_backbone/Traffic/Crossformer.sh").read_text()
+
+    assert re.search(r"^LABEL_LEN=48$", text, re.MULTILINE)
+
+
 def test_diffmax_attention_implementation_has_no_softmax_fallback_in_diffmax_branch():
     tree = ast.parse(Path("layers/SelfAttention_Family.py").read_text())
 

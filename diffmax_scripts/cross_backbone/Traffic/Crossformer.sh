@@ -15,7 +15,7 @@ DONE_DIR="./done/diffmax_cross_backbone_crossformer_traffic"
 mkdir -p "${LOGS_DIR}" "${DONE_DIR}"
 
 SEQ_LEN=336
-LABEL_LEN=96
+LABEL_LEN=48
 
 PRED_LENS=(720 336 192 96)
 SEEDS=(2021 2022 2023)
