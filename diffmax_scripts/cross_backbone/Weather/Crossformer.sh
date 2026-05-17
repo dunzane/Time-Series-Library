@@ -86,7 +86,7 @@ run_one() {
     --d_ff 32 \
     --top_k 5 \
     --des "${des}" \
-    --train_epochs 1 \
+    --train_epochs 10 \
     --learning_rate ${lr} \
     --seed ${seed} \
     --num_workers 0 \

@@ -266,6 +266,13 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         with open(result_file, "a") as f:
             f.write(setting + "  \n")
+            f.write(
+                "normalizer:{}, diffmax_alpha:{}, diffmax_n_iter:{}\n".format(
+                    self.args.normalizer,
+                    self.args.diffmax_alpha,
+                    self.args.diffmax_n_iter,
+                )
+            )
             f.write("mse:{}, mae:{}, dtw:{}".format(mse, mae, dtw))
             f.write("\n\n")
 

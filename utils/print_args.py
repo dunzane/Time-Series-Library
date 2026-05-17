@@ -39,6 +39,11 @@ def print_args(args):
     print(f'  {"Embed:":<20}{args.embed:<20}{"Activation:":<20}{args.activation:<20}')
     print()
 
+    print("\033[1m" + "Attention Normalizer" + "\033[0m")
+    print(f'  {"Normalizer:":<20}{args.normalizer:<20}{"Diffmax Alpha:":<20}{args.diffmax_alpha:<20}')
+    print(f'  {"Diffmax N Iter:":<20}{args.diffmax_n_iter:<20}')
+    print()
+
     print("\033[1m" + "Run Parameters" + "\033[0m")
     print(f'  {"Num Workers:":<20}{args.num_workers:<20}{"Itr:":<20}{args.itr:<20}')
     print(f'  {"Train Epochs:":<20}{args.train_epochs:<20}{"Batch Size:":<20}{args.batch_size:<20}')

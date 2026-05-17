@@ -218,7 +218,7 @@ if __name__ == '__main__':
         for ii in range(args.itr):
             # setting record of experiments
             exp = Exp(args)  # set experiments
-            setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_expand{}_dc{}_fc{}_eb{}_dt{}_{}_{}'.format(
+            setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_expand{}_dc{}_fc{}_eb{}_dt{}_norm{}_alpha{}_niter{}_{}_{}'.format(
                 args.task_name,
                 args.model_id,
                 args.model,
@@ -237,6 +237,9 @@ if __name__ == '__main__':
                 args.factor,
                 args.embed,
                 args.distil,
+                args.normalizer,
+                args.diffmax_alpha,
+                args.diffmax_n_iter,
                 args.des, ii)
 
             # Override setting for specific model to ensure proper checkpoint naming and logging
@@ -244,6 +247,7 @@ if __name__ == '__main__':
                 setting = f'{args.task_name}_CLS_{args.model_id}_{args.model}_{args.data}_ft{args.features}' \
                         + f'_sl{args.seq_len}_ll{args.label_len}_pl{args.pred_len}_dm{args.d_model}_ds{args.d_ff}' \
                         + f'_expand{args.expand}_dc{args.d_conv}_nk{args.num_kernels}' \
+                        + f'_norm{args.normalizer}_alpha{args.diffmax_alpha}_niter{args.diffmax_n_iter}' \
                         + f'_tvdt{int(args.tv_dt)}_tvB{int(args.tv_B)}_tvC{int(args.tv_C)}_useD{int(args.use_D)}_{args.des}_{ii}'
 
             print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
@@ -265,7 +269,7 @@ if __name__ == '__main__':
     else:
         exp = Exp(args)  # set experiments
         ii = 0
-        setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_expand{}_dc{}_fc{}_eb{}_dt{}_{}_{}'.format(
+        setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_expand{}_dc{}_fc{}_eb{}_dt{}_norm{}_alpha{}_niter{}_{}_{}'.format(
             args.task_name,
             args.model_id,
             args.model,
@@ -284,6 +288,9 @@ if __name__ == '__main__':
             args.factor,
             args.embed,
             args.distil,
+            args.normalizer,
+            args.diffmax_alpha,
+            args.diffmax_n_iter,
             args.des, ii)
 
         # Override setting for specific model to ensure proper checkpoint naming and logging
@@ -291,6 +298,7 @@ if __name__ == '__main__':
             setting = f'{args.task_name}_CLS_{args.model_id}_{args.model}_{args.data}_ft{args.features}' \
                     + f'_sl{args.seq_len}_ll{args.label_len}_pl{args.pred_len}_dm{args.d_model}_ds{args.d_ff}' \
                     + f'_expand{args.expand}_dc{args.d_conv}_nk{args.num_kernels}' \
+                    + f'_norm{args.normalizer}_alpha{args.diffmax_alpha}_niter{args.diffmax_n_iter}' \
                     + f'_tvdt{args.tv_dt}_tvB{args.tv_B}_tvC{args.tv_C}_useD{int(args.use_D)}_{args.des}_{ii}'
 
         print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))

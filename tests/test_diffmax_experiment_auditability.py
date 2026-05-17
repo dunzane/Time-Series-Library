@@ -102,7 +102,7 @@ def test_experiment_scripts_do_not_default_to_one_epoch_smoke_runs():
 
     for script in scripts:
         text = script.read_text()
-        if re.search(r"--train_epochs\s+1(\s|\\)", text):
+        if re.search(r"--train_epochs\s+1(?!\d)(\s|\\)", text):
             violations.append(f"{script}: uses --train_epochs 1 outside smoke test")
 
     assert not violations, "\n".join(violations)
