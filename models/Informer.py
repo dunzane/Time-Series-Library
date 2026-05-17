@@ -23,38 +23,69 @@ class Model(nn.Module):
                                            configs.dropout)
         self.dec_embedding = DataEmbedding(configs.dec_in, configs.d_model, configs.embed, configs.freq,
                                            configs.dropout)
-
         # Encoder
         self.encoder = Encoder(
             [
                 EncoderLayer(
                     AttentionLayer(
-                        ProbAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                      output_attention=False),
-                        configs.d_model, configs.n_heads),
+                        ProbAttention(
+                            False,
+                            configs.factor,
+                            attention_dropout=configs.dropout,
+                            output_attention=False,
+                            normalizer=configs.normalizer,
+                            diffmax_alpha=configs.diffmax_alpha,
+                            diffmax_n_iter=configs.diffmax_n_iter,
+                        ),
+                        configs.d_model,
+                        configs.n_heads,
+                    ),
                     configs.d_model,
                     configs.d_ff,
                     dropout=configs.dropout,
-                    activation=configs.activation
-                ) for l in range(configs.e_layers)
+                    activation=configs.activation,
+                )
+                for l in range(configs.e_layers)
             ],
             [
                 ConvLayer(
-                    configs.d_model
-                ) for l in range(configs.e_layers - 1)
+                    configs.d_model,
+                )
+                for l in range(configs.e_layers - 1)
             ] if configs.distil and ('forecast' in configs.task_name) else None,
-            norm_layer=torch.nn.LayerNorm(configs.d_model)
+            norm_layer=torch.nn.LayerNorm(configs.d_model),
         )
+
         # Decoder
         self.decoder = Decoder(
             [
                 DecoderLayer(
                     AttentionLayer(
-                        ProbAttention(True, configs.factor, attention_dropout=configs.dropout, output_attention=False),
-                        configs.d_model, configs.n_heads),
+                        ProbAttention(
+                            True,
+                            configs.factor,
+                            attention_dropout=configs.dropout,
+                            output_attention=False,
+                            normalizer=configs.normalizer,
+                            diffmax_alpha=configs.diffmax_alpha,
+                            diffmax_n_iter=configs.diffmax_n_iter,
+                        ),
+                        configs.d_model,
+                        configs.n_heads,
+                    ),
                     AttentionLayer(
-                        ProbAttention(False, configs.factor, attention_dropout=configs.dropout, output_attention=False),
-                        configs.d_model, configs.n_heads),
+                        ProbAttention(
+                            False,
+                            configs.factor,
+                            attention_dropout=configs.dropout,
+                            output_attention=False,
+                            normalizer=configs.normalizer,
+                            diffmax_alpha=configs.diffmax_alpha,
+                            diffmax_n_iter=configs.diffmax_n_iter,
+                        ),
+                        configs.d_model,
+                        configs.n_heads,
+                    ),
                     configs.d_model,
                     configs.d_ff,
                     dropout=configs.dropout,
@@ -63,7 +94,7 @@ class Model(nn.Module):
                 for l in range(configs.d_layers)
             ],
             norm_layer=torch.nn.LayerNorm(configs.d_model),
-            projection=nn.Linear(configs.d_model, configs.c_out, bias=True)
+            projection=nn.Linear(configs.d_model, configs.c_out, bias=True),
         )
         if self.task_name == 'imputation':
             self.projection = nn.Linear(configs.d_model, configs.c_out, bias=True)
@@ -82,7 +113,7 @@ class Model(nn.Module):
         dec_out = self.decoder(dec_out, enc_out, x_mask=None, cross_mask=None)
 
         return dec_out  # [B, L, D]
-    
+
     def short_forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         # Normalization
         mean_enc = x_enc.mean(1, keepdim=True).detach()  # B x 1 x E

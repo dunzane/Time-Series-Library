@@ -40,25 +40,56 @@ class Model(nn.Module):
         # Encoder
         self.encoder = Encoder(
             [
-                scale_block(configs, 1 if l == 0 else self.win_size, configs.d_model, configs.n_heads, configs.d_ff,
-                            1, configs.dropout,
-                            self.in_seg_num if l == 0 else ceil(self.in_seg_num / self.win_size ** l), configs.factor
-                            ) for l in range(configs.e_layers)
+                scale_block(
+                    configs,
+                    1 if l == 0 else self.win_size,
+                    configs.d_model,
+                    configs.n_heads,
+                    configs.d_ff,
+                    1,
+                    configs.dropout,
+                    self.in_seg_num if l == 0 else ceil(self.in_seg_num / self.win_size ** l),
+                    configs.factor,
+                )
+                for l in range(configs.e_layers)
             ]
         )
+
         # Decoder
         self.dec_pos_embedding = nn.Parameter(
-            torch.randn(1, configs.enc_in, (self.pad_out_len // self.seg_len), configs.d_model))
+            torch.randn(
+                1,
+                configs.enc_in,
+                (self.pad_out_len // self.seg_len),
+                configs.d_model,
+            )
+        )
 
         self.decoder = Decoder(
             [
                 DecoderLayer(
-                    TwoStageAttentionLayer(configs, (self.pad_out_len // self.seg_len), configs.factor, configs.d_model, configs.n_heads,
-                                           configs.d_ff, configs.dropout),
+                    TwoStageAttentionLayer(
+                        configs,
+                        (self.pad_out_len // self.seg_len),
+                        configs.factor,
+                        configs.d_model,
+                        configs.n_heads,
+                        configs.d_ff,
+                        configs.dropout,
+                    ),
                     AttentionLayer(
-                        FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                      output_attention=False),
-                        configs.d_model, configs.n_heads),
+                        FullAttention(
+                            False,
+                            configs.factor,
+                            attention_dropout=configs.dropout,
+                            output_attention=False,
+                            normalizer=configs.normalizer,
+                            diffmax_alpha=configs.diffmax_alpha,
+                            diffmax_n_iter=configs.diffmax_n_iter,
+                        ),
+                        configs.d_model,
+                        configs.n_heads,
+                    ),
                     self.seg_len,
                     configs.d_model,
                     configs.d_ff,

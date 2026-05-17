@@ -53,25 +53,29 @@ class Model(nn.Module):
             [
                 EncoderLayer(
                     AttentionLayer(
-                        FullAttention(
-                            False, configs.factor,
+                        attention=FullAttention(
+                            mask_flag=False,
+                            factor=configs.factor,
                             attention_dropout=configs.dropout,
                             output_attention=False,
-                            normalizer=getattr(
-                                configs, "normalizer", "softmax"),
-                            diffmax_alpha=getattr(
-                                configs, "diffmax_alpha", 0.85),
-                            monitor_every=getattr(configs, "monitor_every", 0),
-                            layer_id=f"encoder_{l}",
-                        ), configs.d_model, configs.n_heads,),
-                    configs.d_model,
-                    configs.d_ff,
+                            normalizer=configs.normalizer,
+                            diffmax_alpha=configs.diffmax_alpha,
+                            diffmax_n_iter=configs.diffmax_n_iter
+                        ),
+                        d_model=configs.d_model,
+                        n_heads=configs.n_heads
+                    ),
+                    d_model=configs.d_model,
+                    d_ff=configs.d_ff,
                     dropout=configs.dropout,
                     activation=configs.activation
                 ) for l in range(configs.e_layers)
             ],
-            norm_layer=nn.Sequential(Transpose(1, 2), nn.BatchNorm1d(
-                configs.d_model), Transpose(1, 2))
+            norm_layer=nn.Sequential(
+                Transpose(1, 2),
+                nn.BatchNorm1d(configs.d_model),
+                Transpose(1, 2)
+            )
         )
 
         # Prediction Head
@@ -91,11 +95,11 @@ class Model(nn.Module):
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         # Normalization from Non-stationary Transformer
-        means = x_enc.mean(1, keepdim=True).detach()
-        x_enc = x_enc - means
-        stdev = torch.sqrt(
-            torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5)
-        x_enc /= stdev
+        # means = x_enc.mean(1, keepdim=True).detach()
+        # x_enc = x_enc - means
+        # stdev = torch.sqrt(
+        #     torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5)
+        # x_enc /= stdev
 
         # do patching and embedding
         x_enc = x_enc.permute(0, 2, 1)
@@ -116,10 +120,10 @@ class Model(nn.Module):
         dec_out = dec_out.permute(0, 2, 1)
 
         # De-Normalization from Non-stationary Transformer
-        dec_out = dec_out * \
-                  (stdev[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
-        dec_out = dec_out + \
-                  (means[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
+        # dec_out = dec_out * \
+        #           (stdev[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
+        # dec_out = dec_out + \
+        #           (means[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
         return dec_out
 
     def imputation(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask):

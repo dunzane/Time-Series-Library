@@ -26,31 +26,67 @@ class Model(nn.Module):
             [
                 EncoderLayer(
                     AttentionLayer(
-                        FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                      output_attention=False), configs.d_model, configs.n_heads),
+                        FullAttention(
+                            False,
+                            configs.factor,
+                            attention_dropout=configs.dropout,
+                            output_attention=False,
+                            normalizer=configs.normalizer,
+                            diffmax_alpha=configs.diffmax_alpha,
+                            diffmax_n_iter=configs.diffmax_n_iter,
+                        ),
+                        configs.d_model,
+                        configs.n_heads,
+                    ),
                     configs.d_model,
                     configs.d_ff,
                     dropout=configs.dropout,
-                    activation=configs.activation
-                ) for l in range(configs.e_layers)
+                    activation=configs.activation,
+                )
+                for l in range(configs.e_layers)
             ],
-            norm_layer=torch.nn.LayerNorm(configs.d_model)
+            norm_layer=torch.nn.LayerNorm(configs.d_model),
         )
+
         # Decoder
         if self.task_name == 'long_term_forecast' or self.task_name == 'short_term_forecast':
-            self.dec_embedding = DataEmbedding(configs.dec_in, configs.d_model, configs.embed, configs.freq,
-                                               configs.dropout)
+            self.dec_embedding = DataEmbedding(
+                configs.dec_in,
+                configs.d_model,
+                configs.embed,
+                configs.freq,
+                configs.dropout,
+            )
+
             self.decoder = Decoder(
                 [
                     DecoderLayer(
                         AttentionLayer(
-                            FullAttention(True, configs.factor, attention_dropout=configs.dropout,
-                                          output_attention=False),
-                            configs.d_model, configs.n_heads),
+                            FullAttention(
+                                True,
+                                configs.factor,
+                                attention_dropout=configs.dropout,
+                                output_attention=False,
+                                normalizer=configs.normalizer,
+                                diffmax_alpha=configs.diffmax_alpha,
+                                diffmax_n_iter=configs.diffmax_n_iter,
+                            ),
+                            configs.d_model,
+                            configs.n_heads,
+                        ),
                         AttentionLayer(
-                            FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                          output_attention=False),
-                            configs.d_model, configs.n_heads),
+                            FullAttention(
+                                False,
+                                configs.factor,
+                                attention_dropout=configs.dropout,
+                                output_attention=False,
+                                normalizer=configs.normalizer,
+                                diffmax_alpha=configs.diffmax_alpha,
+                                diffmax_n_iter=configs.diffmax_n_iter,
+                            ),
+                            configs.d_model,
+                            configs.n_heads,
+                        ),
                         configs.d_model,
                         configs.d_ff,
                         dropout=configs.dropout,
@@ -59,7 +95,7 @@ class Model(nn.Module):
                     for l in range(configs.d_layers)
                 ],
                 norm_layer=torch.nn.LayerNorm(configs.d_model),
-                projection=nn.Linear(configs.d_model, configs.c_out, bias=True)
+                projection=nn.Linear(configs.d_model, configs.c_out, bias=True),
             )
         if self.task_name == 'imputation':
             self.projection = nn.Linear(configs.d_model, configs.c_out, bias=True)

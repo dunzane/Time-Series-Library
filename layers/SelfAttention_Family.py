@@ -12,12 +12,6 @@ try:
 except ImportError:
     DIFFMAX_AVAILABLE = False
 
-try:
-    from diffmax import diffmax_bisect_monitored
-    MONITORING_AVAILABLE = True
-except ImportError:
-    MONITORING_AVAILABLE = False
-
 class DSAttention(nn.Module):
     '''De-stationary Attention'''
 
@@ -86,18 +80,6 @@ class DSAttention(nn.Module):
 #             return V.contiguous(), None
 
 class FullAttention(nn.Module):
-    """
-    Multi-head attention with pluggable normalizer (softmax or diffmax).
-
-    When `monitor_every > 0`, periodically logs internal diffmax metrics
-    to swanlab via `diffmax_bisect_monitored`. Production training should
-    set `monitor_every=0` (default).
-    """
-
-    # 类级别计数器，跨所有 layer 共享一个 step counter（更接近 global_step）
-    # 如果想每层独立，把这个挪到 self
-    _global_step = 0
-
     def __init__(
         self,
         mask_flag=True,
@@ -105,12 +87,9 @@ class FullAttention(nn.Module):
         scale=None,
         attention_dropout=0.1,
         output_attention=False,
-        normalizer="softmax",       # "softmax" | "diffmax"
-        diffmax_alpha=0.85,
+        normalizer="softmax",
+        diffmax_alpha=0.1,
         diffmax_n_iter=50,
-        # ===== 监控相关 =====
-        monitor_every=0,            # 0=禁用，N=每 N 个 forward 监控一次
-        layer_id=None,              # 用于在 swanlab 区分不同 layer
     ):
         super(FullAttention, self).__init__()
         self.scale = scale
@@ -122,92 +101,95 @@ class FullAttention(nn.Module):
         self.diffmax_alpha = diffmax_alpha
         self.diffmax_n_iter = diffmax_n_iter
 
-        self.monitor_every = monitor_every
-        self.layer_id = layer_id
-
         if normalizer == "diffmax" and not DIFFMAX_AVAILABLE:
             raise ImportError(
                 "diffmax not installed; install with: pip install -e <path-to-diffmax>"
             )
 
-        if monitor_every > 0:
-            if normalizer != "diffmax":
-                raise ValueError(
-                    "monitor_every>0 requires normalizer='diffmax'; "
-                    "softmax has nothing to monitor"
-                )
-            if not MONITORING_AVAILABLE:
-                raise ImportError(
-                    "Monitoring requires swanlab. Install with: "
-                    "pip install 'diffmax[monitoring]'"
-                )
-
-        self._local_step = 0
+    def _get_alpha(self, scores):
+        return self.diffmax_alpha
 
     def _normalize(self, scores):
         if self.normalizer == "softmax":
             return torch.softmax(scores, dim=-1)
 
         if self.normalizer == "diffmax":
-            self._local_step += 1
-            FullAttention._global_step += 1
-
-            should_monitor = (
-                self.monitor_every > 0
-                and self._local_step % self.monitor_every == 0
+            alpha = self._get_alpha(scores)
+            return diffmax_bisect(
+                scores,
+                alpha=alpha,
+                dim=-1,
+                n_iter=self.diffmax_n_iter,
             )
-
-            if should_monitor:
-                # 把 layer_id 编码进 prefix，没有字符串字段
-                prefix = f"diffmax/{self.layer_id}" if self.layer_id else "diffmax"
-                return diffmax_bisect_monitored(
-                    scores,
-                    alpha=self.diffmax_alpha,
-                    dim=-1,
-                    n_iter=self.diffmax_n_iter,
-                    step=FullAttention._global_step,
-                    name_prefix=prefix,    # ← 用 prefix 区分 layer
-                    extra_metadata=None,   # 不再传字符串
-                )
-            else:
-                return diffmax_bisect(
-                    scores,
-                    alpha=self.diffmax_alpha,
-                    dim=-1,
-                    n_iter=self.diffmax_n_iter,
-                )
 
         raise ValueError(f"unknown normalizer: {self.normalizer}")
 
     def forward(self, queries, keys, values, attn_mask, tau=None, delta=None):
         B, L, H, E = queries.shape
         _, S, _, D = values.shape
-        scale = self.scale or 1. / sqrt(E)
 
-        scores = torch.einsum("blhe,bshe->bhls", queries, keys)
+        scale = self.scale or 1.0 / sqrt(E)
+        scores = scale * torch.einsum("blhe,bshe->bhls", queries, keys)
 
         if self.mask_flag:
             if attn_mask is None:
                 attn_mask = TriangularCausalMask(B, L, device=queries.device)
-            scores.masked_fill_(attn_mask.mask, -np.inf)
 
-        A = self.dropout(self._normalize(scale * scores))
+            scores = scores.masked_fill(attn_mask.mask, -torch.inf)
+
+        A = self.dropout(self._normalize(scores))
         V = torch.einsum("bhls,bshd->blhd", A, values)
 
         if self.output_attention:
             return V.contiguous(), A
-        else:
-            return V.contiguous(), None
+        return V.contiguous(), None
 
 
 class ProbAttention(nn.Module):
-    def __init__(self, mask_flag=True, factor=5, scale=None, attention_dropout=0.1, output_attention=False):
+    def __init__(
+        self,
+        mask_flag=True,
+        factor=5,
+        scale=None,
+        attention_dropout=0.1,
+        output_attention=False,
+        normalizer="softmax",
+        diffmax_alpha=0.85,
+        diffmax_n_iter=50,
+    ):
         super(ProbAttention, self).__init__()
         self.factor = factor
         self.scale = scale
         self.mask_flag = mask_flag
         self.output_attention = output_attention
         self.dropout = nn.Dropout(attention_dropout)
+
+        self.normalizer = normalizer
+        self.diffmax_alpha = diffmax_alpha
+        self.diffmax_n_iter = diffmax_n_iter
+
+        if normalizer == "diffmax" and not DIFFMAX_AVAILABLE:
+            raise ImportError(
+                "diffmax not installed; install with: pip install -e <path-to-diffmax>"
+            )
+
+    def _get_alpha(self, scores):
+        return self.diffmax_alpha
+
+    def _normalize(self, scores):
+        if self.normalizer == "softmax":
+            return torch.softmax(scores, dim=-1)
+
+        if self.normalizer == "diffmax":
+            alpha = self._get_alpha(scores)
+            return diffmax_bisect(
+                scores,
+                alpha=alpha,
+                dim=-1,
+                n_iter=self.diffmax_n_iter,
+            )
+
+        raise ValueError(f"unknown normalizer: {self.normalizer}")
 
     def _prob_QK(self, Q, K, sample_k, n_top):  # n_top: c*ln(L_q)
         # Q [B, H, L, D]
@@ -253,18 +235,25 @@ class ProbAttention(nn.Module):
 
         if self.mask_flag:
             attn_mask = ProbMask(B, H, L_Q, index, scores, device=V.device)
-            scores.masked_fill_(attn_mask.mask, -np.inf)
+            scores = scores.masked_fill(attn_mask.mask, -torch.inf)
 
-        attn = torch.softmax(scores, dim=-1)  # nn.Softmax(dim=-1)(scores)
+        attn = self._normalize(scores)
 
-        context_in[torch.arange(B)[:, None, None],
-        torch.arange(H)[None, :, None],
-        index, :] = torch.matmul(attn, V).type_as(context_in)
+        context_in[
+            torch.arange(B)[:, None, None],
+            torch.arange(H)[None, :, None],
+            index,
+            :
+        ] = torch.matmul(attn, V).type_as(context_in)
+
         if self.output_attention:
-            attns = (torch.ones([B, H, L_V, L_V]) /
-                     L_V).type_as(attn).to(attn.device)
-            attns[torch.arange(B)[:, None, None], torch.arange(H)[
-                                                  None, :, None], index, :] = attn
+            attns = (torch.ones([B, H, L_V, L_V]) / L_V).type_as(attn).to(attn.device)
+            attns[
+                torch.arange(B)[:, None, None],
+                torch.arange(H)[None, :, None],
+                index,
+                :
+            ] = attn
             return context_in, attns
         else:
             return context_in, None
@@ -378,12 +367,49 @@ class TwoStageAttentionLayer(nn.Module):
                  seg_num, factor, d_model, n_heads, d_ff=None, dropout=0.1):
         super(TwoStageAttentionLayer, self).__init__()
         d_ff = d_ff or 4 * d_model
-        self.time_attention = AttentionLayer(FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                                           output_attention=False), d_model, n_heads)
-        self.dim_sender = AttentionLayer(FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                                       output_attention=False), d_model, n_heads)
-        self.dim_receiver = AttentionLayer(FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                                         output_attention=False), d_model, n_heads)
+
+        self.time_attention = AttentionLayer(
+            FullAttention(
+                False,
+                configs.factor,
+                attention_dropout=configs.dropout,
+                output_attention=False,
+                normalizer=configs.normalizer,
+                diffmax_alpha=configs.diffmax_alpha,
+                diffmax_n_iter=configs.diffmax_n_iter,
+            ),
+            d_model,
+            n_heads,
+        )
+
+        self.dim_sender = AttentionLayer(
+            FullAttention(
+                False,
+                configs.factor,
+                attention_dropout=configs.dropout,
+                output_attention=False,
+                normalizer=configs.normalizer,
+                diffmax_alpha=configs.diffmax_alpha,
+                diffmax_n_iter=configs.diffmax_n_iter,
+            ),
+            d_model,
+            n_heads,
+        )
+
+        self.dim_receiver = AttentionLayer(
+            FullAttention(
+                False,
+                configs.factor,
+                attention_dropout=configs.dropout,
+                output_attention=False,
+                normalizer=configs.normalizer,
+                diffmax_alpha=configs.diffmax_alpha,
+                diffmax_n_iter=configs.diffmax_n_iter,
+            ),
+            d_model,
+            n_heads,
+        )
+
         self.router = nn.Parameter(torch.randn(seg_num, factor, d_model))
 
         self.dropout = nn.Dropout(dropout)
@@ -393,12 +419,16 @@ class TwoStageAttentionLayer(nn.Module):
         self.norm3 = nn.LayerNorm(d_model)
         self.norm4 = nn.LayerNorm(d_model)
 
-        self.MLP1 = nn.Sequential(nn.Linear(d_model, d_ff),
-                                  nn.GELU(),
-                                  nn.Linear(d_ff, d_model))
-        self.MLP2 = nn.Sequential(nn.Linear(d_model, d_ff),
-                                  nn.GELU(),
-                                  nn.Linear(d_ff, d_model))
+        self.MLP1 = nn.Sequential(
+            nn.Linear(d_model, d_ff),
+            nn.GELU(),
+            nn.Linear(d_ff, d_model),
+        )
+        self.MLP2 = nn.Sequential(
+            nn.Linear(d_model, d_ff),
+            nn.GELU(),
+            nn.Linear(d_ff, d_model),
+        )
 
     def forward(self, x, attn_mask=None, tau=None, delta=None):
         # Cross Time Stage: Directly apply MSA to each dimension
@@ -415,8 +445,12 @@ class TwoStageAttentionLayer(nn.Module):
         # Cross Dimension Stage: use a small set of learnable vectors to aggregate and distribute messages to build the D-to-D connection
         dim_send = rearrange(dim_in, '(b ts_d) seg_num d_model -> (b seg_num) ts_d d_model', b=batch)
         batch_router = repeat(self.router, 'seg_num factor d_model -> (repeat seg_num) factor d_model', repeat=batch)
-        dim_buffer, attn = self.dim_sender(batch_router, dim_send, dim_send, attn_mask=None, tau=None, delta=None)
-        dim_receive, attn = self.dim_receiver(dim_send, dim_buffer, dim_buffer, attn_mask=None, tau=None, delta=None)
+        dim_buffer, attn = self.dim_sender(
+            batch_router, dim_send, dim_send, attn_mask=None, tau=None, delta=None
+        )
+        dim_receive, attn = self.dim_receiver(
+            dim_send, dim_buffer, dim_buffer, attn_mask=None, tau=None, delta=None
+        )
         dim_enc = dim_send + self.dropout(dim_receive)
         dim_enc = self.norm3(dim_enc)
         dim_enc = dim_enc + self.dropout(self.MLP2(dim_enc))
