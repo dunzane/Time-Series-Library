@@ -7,6 +7,15 @@ def _bash_files_under(path):
     return sorted(Path(path).glob("**/*.sh"))
 
 
+def _diffmax_experiment_scripts():
+    scripts = []
+    for directory in ("diffmax_scripts", "diffmax_exp"):
+        root = Path(directory)
+        if root.exists():
+            scripts.extend(_bash_files_under(root))
+    return sorted(scripts)
+
+
 def test_run_py_exposes_diffmax_cli_arguments():
     source = Path("run.py").read_text()
 
@@ -54,8 +63,8 @@ def test_long_term_result_file_records_normalizer_and_diffmax_hyperparameters():
 
 
 def test_all_diffmax_scripts_schedule_both_softmax_and_diffmax_runs():
-    scripts = _bash_files_under("diffmax_scripts")
-    assert scripts, "No diffmax scripts found"
+    scripts = _diffmax_experiment_scripts()
+    assert scripts, "No diffmax scripts found in diffmax_scripts/ or diffmax_exp/"
 
     violations = []
     for script in scripts:
@@ -75,7 +84,7 @@ def test_all_diffmax_scripts_schedule_both_softmax_and_diffmax_runs():
 
 
 def test_all_diffmax_scripts_use_distinct_ids_for_softmax_and_diffmax():
-    scripts = _bash_files_under("diffmax_scripts")
+    scripts = _diffmax_experiment_scripts()
     violations = []
 
     for script in scripts:
@@ -97,7 +106,11 @@ def test_all_diffmax_scripts_use_distinct_ids_for_softmax_and_diffmax():
 
 
 def test_experiment_scripts_do_not_default_to_one_epoch_smoke_runs():
-    scripts = [path for path in _bash_files_under("diffmax_scripts") if path.name != "test.sh"]
+    scripts = [
+        path
+        for path in _diffmax_experiment_scripts()
+        if path.name != "test.sh" and "smoke" not in path.name.lower()
+    ]
     violations = []
 
     for script in scripts:
