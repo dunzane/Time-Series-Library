@@ -4,7 +4,7 @@ set -u
 
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
-export CUDA_VISIBLE_DEVICES=3
+export CUDA_VISIBLE_DEVICES=2
 
 BACKBONE="PatchTST"
 DATASET="Weather"
@@ -17,10 +17,11 @@ mkdir -p "${LOGS_DIR}" "${DONE_DIR}"
 SEQ_LEN=336
 LABEL_LEN=48
 
-PRED_LENS=(96 192 336 720)
+PRED_LENS=(192 96)
+
 SEEDS=(2021 2022 2023)
 LRS=(0.0001 0.00005 0.00002)
-ALPHAS=(0.70 0.50 0.30 0.20 0.10)
+ALPHAS=(0.30 0.20 0.10 0.05)
 
 run_one() {
   local normalizer=$1
@@ -76,7 +77,7 @@ run_one() {
     --c_out 21 \
     --des "${des}" \
     --n_heads 4 \
-    --batch_size 128 \
+    --batch_size 64 \
     --learning_rate ${lr} \
     --seed ${seed} \
     ${norm_args} \

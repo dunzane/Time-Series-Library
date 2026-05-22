@@ -17,11 +17,11 @@ mkdir -p "${RESULTS_DIR}" "${LOGS_DIR}" "${DONE_DIR}"
 SEQ_LEN=336
 LABEL_LEN=48
 
-PRED_LENS=(720 336 192 96)
+PRED_LENS=(192 96)
 
 SEEDS=(2021 2022 2023)
 LRS=(0.0001 0.00005 0.00002)
-ALPHAS=(0.70 0.50 0.30 0.20 0.10)
+ALPHAS=(0.30 0.20 0.10 0.05)
 
 # Number of concurrent jobs on the visible GPU.
 # For a single GPU, start with 1 or 2. Increase only after confirming memory is stable.

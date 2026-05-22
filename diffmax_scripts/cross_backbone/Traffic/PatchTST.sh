@@ -17,10 +17,11 @@ mkdir -p "${LOGS_DIR}" "${DONE_DIR}"
 SEQ_LEN=336
 LABEL_LEN=48
 
-PRED_LENS=(96 192 336 720)
+PRED_LENS=(192 96)
+
 SEEDS=(2021 2022 2023)
 LRS=(0.0001 0.00005 0.00002)
-ALPHAS=(0.70 0.50 0.30 0.20 0.10)
+ALPHAS=(0.30 0.20 0.10 0.05)
 
 run_one() {
   local normalizer=$1
@@ -80,6 +81,8 @@ run_one() {
     --des "${des}" \
     --batch_size 4 \
     --learning_rate ${lr} \
+    --train_epochs 2 \
+    --patience 3 \
     --seed ${seed} \
     ${norm_args} \
     --itr 1 \

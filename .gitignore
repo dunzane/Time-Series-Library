@@ -171,3 +171,5 @@ environment.txt
 logs/
 result*
 done/
+pyrightconfig.json
+tests

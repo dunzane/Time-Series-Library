@@ -90,6 +90,8 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         model_optim = self._select_optimizer()
         criterion = self._select_criterion()
 
+        clip_grad = getattr(self.args, 'clip_grad', 1.0)
+
         if self.args.use_amp:
             scaler = torch.cuda.amp.GradScaler()
 
@@ -102,6 +104,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
             for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
                 iter_count += 1
                 model_optim.zero_grad()
+
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float().to(self.device)
                 batch_x_mark = batch_x_mark.float().to(self.device)
@@ -109,7 +112,10 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
                 # decoder input
                 dec_inp = torch.zeros_like(batch_y[:, -self.args.pred_len:, :]).float()
-                dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
+                dec_inp = torch.cat(
+                    [batch_y[:, :self.args.label_len, :], dec_inp],
+                    dim=1
+                ).float().to(self.device)
 
                 # encoder - decoder
                 if self.args.use_amp:
@@ -131,19 +137,33 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
-                    print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
+                    print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(
+                        i + 1, epoch + 1, loss.item()
+                    ))
                     speed = (time.time() - time_now) / iter_count
                     left_time = speed * ((self.args.train_epochs - epoch) * train_steps - i)
-                    print('\tspeed: {:.4f}s/iter; left time: {:.4f}s'.format(speed, left_time))
+                    print('\tspeed: {:.4f}s/iter; left time: {:.4f}s'.format(
+                        speed, left_time
+                    ))
                     iter_count = 0
                     time_now = time.time()
 
                 if self.args.use_amp:
                     scaler.scale(loss).backward()
+
+                    # Important: unscale before clipping when using AMP.
+                    if clip_grad is not None and clip_grad > 0:
+                        scaler.unscale_(model_optim)
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_grad)
+
                     scaler.step(model_optim)
                     scaler.update()
                 else:
                     loss.backward()
+
+                    if clip_grad is not None and clip_grad > 0:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_grad)
+
                     model_optim.step()
 
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
@@ -152,7 +172,9 @@ class Exp_Long_Term_Forecast(Exp_Basic):
             test_loss = self.vali(test_data, test_loader, criterion)
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
-                epoch + 1, train_steps, train_loss, vali_loss, test_loss))
+                epoch + 1, train_steps, train_loss, vali_loss, test_loss
+            ))
+
             early_stopping(vali_loss, self.model, path)
             if early_stopping.early_stop:
                 print("Early stopping")
@@ -266,13 +288,6 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         with open(result_file, "a") as f:
             f.write(setting + "  \n")
-            f.write(
-                "normalizer:{}, diffmax_alpha:{}, diffmax_n_iter:{}\n".format(
-                    self.args.normalizer,
-                    self.args.diffmax_alpha,
-                    self.args.diffmax_n_iter,
-                )
-            )
             f.write("mse:{}, mae:{}, dtw:{}".format(mse, mae, dtw))
             f.write("\n\n")
 

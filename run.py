@@ -77,7 +77,7 @@ if __name__ == '__main__':
                         help='0: channel dependence 1: channel independence for FreTS model')
     parser.add_argument('--decomp_method', type=str, default='moving_avg',
                         help='method of series decompsition, only support moving_avg or dft_decomp')
-    parser.add_argument('--use_norm', type=int, default=1, help='whether to use normalize; True 1 False 0')
+    parser.add_argument('--use_norm', type=int, default=0, help='whether to use normalize; True 1 False 0')
     parser.add_argument('--down_sampling_layers', type=int, default=0, help='num of down sampling layers')
     parser.add_argument('--down_sampling_window', type=int, default=1, help='down sampling window size')
     parser.add_argument('--down_sampling_method', type=str, default=None,
@@ -93,8 +93,8 @@ if __name__ == '__main__':
     parser.add_argument('--patience', type=int, default=5, help='early stopping patience')
     parser.add_argument('--learning_rate', type=float, default=0.0001, help='optimizer learning rate')
     parser.add_argument('--des', type=str, default='test', help='exp description')
-    parser.add_argument('--loss', type=str, default='MSE', help='loss function')
-    parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate')
+    parser.add_argument('--loss', type=str, default='MAE', help='loss function')
+    parser.add_argument('--lradj', type=str, default='type3', help='adjust learning rate')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
 
     # GPU
