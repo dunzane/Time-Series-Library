@@ -96,6 +96,12 @@ if __name__ == '__main__':
     parser.add_argument('--loss', type=str, default='MAE', help='loss function')
     parser.add_argument('--lradj', type=str, default='type3', help='adjust learning rate')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
+    parser.add_argument('--optimizer', type=str, default='adamw', choices=['adam', 'adamw'],help='optimizer type')
+    parser.add_argument('--weight_decay', type=float, default=0.01, help='weight decay for optimizer')
+    parser.add_argument('--adam_beta1', type=float, default=0.9, help='beta1 for Adam/AdamW')
+    parser.add_argument('--adam_beta2', type=float, default=0.999, help='beta2 for Adam/AdamW')
+    parser.add_argument('--adam_eps', type=float, help='epsilon for Adam/AdamW')
+    parser.add_argument('--clip_grad', type=float, default=1.0, help='maximum gradient norm for gradient clipping; set <= 0 to disable')
 
     # GPU
     parser.add_argument('--use_gpu', action='store_true', default=True, help='use gpu (default: on)')

@@ -31,13 +31,88 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         return data_set, data_loader
 
     def _select_optimizer(self):
-        model_optim = optim.Adam(self.model.parameters(), lr=self.args.learning_rate)
+        optimizer_name = getattr(self.args, 'optimizer', 'adamw')
+        if optimizer_name is None:
+            optimizer_name = 'adamw'
+        optimizer_name = optimizer_name.lower()
+
+        weight_decay = getattr(self.args, 'weight_decay', 0.01)
+        if weight_decay is None:
+            weight_decay = 0.01
+        weight_decay = float(weight_decay)
+
+        adam_beta1 = getattr(self.args, 'adam_beta1', 0.9)
+        if adam_beta1 is None:
+            adam_beta1 = 0.9
+        adam_beta1 = float(adam_beta1)
+
+        adam_beta2 = getattr(self.args, 'adam_beta2', 0.999)
+        if adam_beta2 is None:
+            adam_beta2 = 0.999
+        adam_beta2 = float(adam_beta2)
+
+        adam_eps = getattr(self.args, 'adam_eps', 1e-8)
+        if adam_eps is None:
+            adam_eps = 1e-8
+        adam_eps = float(adam_eps)
+
+        decay_params = []
+        no_decay_params = []
+
+        for name, param in self.model.named_parameters():
+            if not param.requires_grad:
+                continue
+
+            name_lower = name.lower()
+            if (
+                name.endswith('.bias')
+                or 'norm' in name_lower
+                or 'bn' in name_lower
+                or 'layernorm' in name_lower
+            ):
+                no_decay_params.append(param)
+            else:
+                decay_params.append(param)
+
+        param_groups = [
+            {
+                'params': decay_params,
+                'weight_decay': weight_decay,
+            },
+            {
+                'params': no_decay_params,
+                'weight_decay': 0.0,
+            },
+        ]
+
+        if optimizer_name == 'adam':
+            model_optim = optim.Adam(
+                param_groups,
+                lr=self.args.learning_rate,
+                betas=(adam_beta1, adam_beta2),
+                eps=adam_eps
+            )
+        elif optimizer_name == 'adamw':
+            model_optim = optim.AdamW(
+                param_groups,
+                lr=self.args.learning_rate,
+                betas=(adam_beta1, adam_beta2),
+                eps=adam_eps
+            )
+        else:
+            raise ValueError(f'Unsupported optimizer: {optimizer_name}')
+
         return model_optim
 
-    def _select_criterion(self):
-        criterion = nn.MSELoss()
-        return criterion
 
+    def _select_criterion(self):
+        if getattr(self.args, 'loss', 'mse') == 'mae':
+            criterion = nn.L1Loss()
+        elif getattr(self.args, 'loss', 'mse') == 'smooth_l1':
+            criterion = nn.SmoothL1Loss()
+        else:
+            criterion = nn.MSELoss()
+        return criterion
 
     def vali(self, vali_data, vali_loader, criterion):
         total_loss = []

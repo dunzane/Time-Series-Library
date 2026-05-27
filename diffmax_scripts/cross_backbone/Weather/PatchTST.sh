@@ -4,24 +4,25 @@ set -u
 
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=3
 
 BACKBONE="PatchTST"
 DATASET="Weather"
 
-LOGS_DIR="./logs/diffmax_cross_backbone_patchtst_weather"
-DONE_DIR="./done/diffmax_cross_backbone_patchtst_weather"
+LOGS_DIR="./logs/diffmax_pl192_patchtst_weather"
+DONE_DIR="./done/diffmax_pl192_patchtst_weather"
 
 mkdir -p "${LOGS_DIR}" "${DONE_DIR}"
 
 SEQ_LEN=336
 LABEL_LEN=48
 
-PRED_LENS=(192 96)
+PRED_LENS=(192)
 
 SEEDS=(2021 2022 2023)
-LRS=(0.0001 0.00005 0.00002)
-ALPHAS=(0.30 0.20 0.10 0.05)
+
+ALPHAS=(0.40 0.50 0.60 0.70)
+LRS=(0.0001)
 
 run_one() {
   local normalizer=$1
@@ -37,13 +38,13 @@ run_one() {
 
   if [[ "${normalizer}" == "softmax" ]]; then
     run_id="${BACKBONE}_${DATASET}_sl${SEQ_LEN}_pl${pred_len}_softmax_seed${seed}_lr${lr}"
-    model_id="weather_${SEQ_LEN}_${pred_len}_cross_backbone_softmax_lr${lr}_seed${seed}"
-    des="cross_backbone_softmax_lr${lr}_seed${seed}"
+    model_id="weather_${SEQ_LEN}_${pred_len}_softmax_lr${lr}_seed${seed}"
+    des="softmax_lr${lr}_seed${seed}"
     norm_args="--normalizer softmax"
   else
     run_id="${BACKBONE}_${DATASET}_sl${SEQ_LEN}_pl${pred_len}_diffmax_a${alpha}_seed${seed}_lr${lr}"
-    model_id="weather_${SEQ_LEN}_${pred_len}_cross_backbone_diffmax_a${alpha}_lr${lr}_seed${seed}"
-    des="cross_backbone_diffmax_a${alpha}_lr${lr}_seed${seed}"
+    model_id="weather_${SEQ_LEN}_${pred_len}_diffmax_a${alpha}_lr${lr}_seed${seed}"
+    des="diffmax_a${alpha}_lr${lr}_seed${seed}"
     norm_args="--normalizer diffmax --diffmax_alpha ${alpha} --diffmax_n_iter 50"
   fi
 
@@ -79,6 +80,10 @@ run_one() {
     --n_heads 4 \
     --batch_size 64 \
     --learning_rate ${lr} \
+    --optimizer adamw \
+    --weight_decay 0.01 \
+    --clip_grad 1.0 \
+    --loss smooth_l1 \
     --seed ${seed} \
     ${norm_args} \
     --itr 1 \
@@ -107,5 +112,7 @@ for pred_len in "${PRED_LENS[@]}"; do
   done
 done
 
+wait
+
 echo ""
-echo "[${BACKBONE} × ${DATASET}] All scheduled runs finished or skipped."
+echo "[${BACKBONE} × ${DATASET}] All high-momentum prioritized runs finished or skipped."

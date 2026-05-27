@@ -6,11 +6,11 @@ export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export CUDA_VISIBLE_DEVICES=3
 
-BACKBONE="Crossformer"
-DATASET="ETTm1"
+BACKBONE="iTransformer"
+DATASET="ETTh1"
 
-LOGS_DIR="./logs/diffmax_cross_backbone_crossformer_ettm1"
-DONE_DIR="./done/diffmax_cross_backbone_crossformer_ettm1"
+LOGS_DIR="./logs/diffmax_cross_backbone_itransformer_etth1"
+DONE_DIR="./done/diffmax_cross_backbone_itransformer_etth1"
 
 mkdir -p "${LOGS_DIR}" "${DONE_DIR}"
 
@@ -68,20 +68,23 @@ run_one() {
     --task_name long_term_forecast \
     --is_training 1 \
     --root_path ./dataset/ETT-small/ \
-    --data_path ETTm1.csv \
+    --data_path ETTh1.csv \
     --model_id "${model_id}" \
     --model "${BACKBONE}" \
-    --data ETTm1 \
+    --data ETTh1 \
     --features M \
     --seq_len ${SEQ_LEN} \
     --label_len ${LABEL_LEN} \
     --pred_len ${pred_len} \
     --e_layers 2 \
     --d_layers 1 \
+    --factor 3 \
     --enc_in 7 \
     --dec_in 7 \
     --c_out 7 \
     --des "${des}" \
+    --d_model 128 \
+    --d_ff 128 \
     --learning_rate ${lr} \
     --seed ${seed} \
     --num_workers 0 \

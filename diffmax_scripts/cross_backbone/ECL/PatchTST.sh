@@ -1,27 +1,30 @@
 #!/bin/bash
 # Resume-safe: finished runs are skipped by .done flags.
+# High-Momentum & Stabilized Configuration for Extreme Multi-channel Mapping (Diffmax × ECL)
 set -u
 
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=2
 
 BACKBONE="PatchTST"
 DATASET="ECL"
 
-LOGS_DIR="./logs/diffmax_cross_backbone_patchtst_ecl"
-DONE_DIR="./done/diffmax_cross_backbone_patchtst_ecl"
+LOGS_DIR="./logs/diffmax_pl192_patchtst_ecl"
+DONE_DIR="./done/diffmax_pl192_patchtst_ecl"
 
 mkdir -p "${LOGS_DIR}" "${DONE_DIR}"
 
 SEQ_LEN=336
 LABEL_LEN=48
 
-PRED_LENS=(192 96)
+PRED_LENS=(192)
 
 SEEDS=(2021 2022 2023)
-LRS=(0.0001 0.00005 0.00002)
-ALPHAS=(0.30 0.20 0.10 0.05)
+
+LRS=(0.0001)
+
+ALPHAS=(0.20 0.30 0.40 0.50)
 
 run_one() {
   local normalizer=$1
@@ -37,13 +40,13 @@ run_one() {
 
   if [[ "${normalizer}" == "softmax" ]]; then
     run_id="${BACKBONE}_${DATASET}_sl${SEQ_LEN}_pl${pred_len}_softmax_seed${seed}_lr${lr}"
-    model_id="${DATASET}_${SEQ_LEN}_${pred_len}_cross_backbone_softmax_lr${lr}_seed${seed}"
-    des="cross_backbone_softmax_lr${lr}_seed${seed}"
+    model_id="${DATASET}_${SEQ_LEN}_${pred_len}_stabilized_softmax_lr${lr}_seed${seed}"
+    des="stabilized_softmax_lr${lr}_seed${seed}"
     norm_args="--normalizer softmax"
   else
     run_id="${BACKBONE}_${DATASET}_sl${SEQ_LEN}_pl${pred_len}_diffmax_a${alpha}_seed${seed}_lr${lr}"
-    model_id="${DATASET}_${SEQ_LEN}_${pred_len}_cross_backbone_diffmax_a${alpha}_lr${lr}_seed${seed}"
-    des="cross_backbone_diffmax_a${alpha}_lr${lr}_seed${seed}"
+    model_id="${DATASET}_${SEQ_LEN}_${pred_len}_stabilized_diffmax_a${alpha}_lr${lr}_seed${seed}"
+    des="stabilized_diffmax_a${alpha}_lr${lr}_seed${seed}"
     norm_args="--normalizer diffmax --diffmax_alpha ${alpha} --diffmax_n_iter 50"
   fi
 
@@ -78,6 +81,10 @@ run_one() {
     --des "${des}" \
     --batch_size 8 \
     --learning_rate ${lr} \
+    --optimizer adamw \
+    --weight_decay 0.01 \
+    --clip_grad 1.0 \
+    --loss smooth_l1 \
     --train_epochs 2 \
     --seed ${seed} \
     ${norm_args} \
@@ -107,5 +114,7 @@ for pred_len in "${PRED_LENS[@]}"; do
   done
 done
 
+wait
+
 echo ""
-echo "[${BACKBONE} × ${DATASET}] All scheduled runs finished or skipped."
+echo "[${BACKBONE} × ${DATASET}] All smooth_l1 & high LR prioritized runs finished or skipped."
